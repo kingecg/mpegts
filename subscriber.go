@@ -32,7 +32,6 @@ func (c *TsSubscriber) OnEvent(event any) {
 	var err error
 	switch v := event.(type) {
 	case AudioDeConf:
-		plugin.Info("Audio conf")
 		c.meta.asc, err = DecodeAudioSpecificConfig(v.AVCC[0])
 		if err != nil {
 			return
@@ -50,8 +49,8 @@ func (c *TsSubscriber) OnEvent(event any) {
 		c.pmt = buffer.Bytes()
 		c.AddTrack(v)
 	case *AudioFrame:
-		plugin.Info("Audio frame")
 		if c.meta.packet, err = AudioPacketToPES(v, c.meta.asc); err != nil {
+			plugin.Error("Make audio pes error:" + err.Error())
 			return
 		}
 		pes := &mpegts.MpegtsPESFrame{
@@ -65,10 +64,10 @@ func (c *TsSubscriber) OnEvent(event any) {
 		}
 		c.meta.audio_cc = uint16(pes.ContinuityCounter)
 	case *VideoFrame:
-		plugin.Info("video frame")
 		pbuffer := &bytes.Buffer{}
 		c.meta.packet, err = VideoPacketToPES(v, c.Video.Track.DecoderConfiguration, c.SkipTS)
 		if err != nil {
+			plugin.Error("Write video pes error:" + err.Error())
 			return
 		}
 		if v.IFrame {
@@ -90,9 +89,14 @@ func (c *TsSubscriber) OnEvent(event any) {
 		if err = mpegts.WritePESPacket(pbuffer, pes, c.meta.packet); err != nil {
 			return
 		}
-		c.Write(pbuffer.Bytes())
+		n, err := c.Write(pbuffer.Bytes())
+		if err != nil {
+			plugin.Error("Send packet error:" + err.Error())
+			c.Stop()
+		} else {
+			plugin.Debug("send bytes count:" + string(rune(n)))
+		}
 		c.meta.video_cc = uint16(pes.ContinuityCounter)
-		plugin.Info("v end")
 	default:
 		c.Subscriber.OnEvent(event)
 	}
@@ -156,26 +160,4 @@ func (p *MpegtsConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		specific.PlayRaw()
 	}
-
-	// go func() {
-	// 	defer conn.Close()
-
-	// 	for {
-	// 		msg, op, err := wsutil.ReadClientData(conn)
-	// 		if err != nil {
-	// 			plugin.Error(err.Error())
-	// 			return
-	// 		} else {
-	// 			plugin.Info(string(msg))
-	// 		}
-	// 		err = wsutil.WriteServerMessage(conn, op, []byte("pong"))
-	// 		if err != nil {
-	// 			plugin.Error(err.Error())
-	// 			return
-	// 		}
-	// 	}
-	// 	// plugin.Error(err.Error())
-	// 	specific.Stop()
-	// }()
-
 }

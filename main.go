@@ -14,6 +14,9 @@ type MpegtsConfig struct {
 func (p *MpegtsConfig) OnEvent(event any) {
 	switch v := event.(type) {
 	case FirstConfig: //插件初始化逻辑
+		if p.Tinterval == 0 {
+			p.Tinterval = 1
+		}
 		plugin.Info("Started")
 	// case Config://插件热更新逻辑
 	case Stream: //按需拉流逻辑
