@@ -8,38 +8,34 @@ import (
 	"m7s.live/engine/v4/codec/mpegts"
 )
 
-func AudioPacketToPESPreprocess(aacRaw []byte, aac_asc codec.AudioSpecificConfig) (data []byte, err error) {
-	// adts
-	if _, data, err = codec.AudioSpecificConfigToADTS(&aac_asc, len(aacRaw)); err != nil {
-		return
-	}
+func AudioPacketToPES(frame AudioFrame, aac_asc codec.AudioSpecificConfig) (packet mpegts.MpegTsPESPacket, err error) {
+	// var data []byte
+	// for _, b := range frame.Raw {
+	// 	data = append(data, b...)
+	// }
+	// if data, err = AudioPacketToPESPreprocess(data, aac_asc); err != nil {
+	// 	return
+	// }
 
-	// adts + aac raw
-	data = append(data, aacRaw...)
-	return
-}
-
-func AudioPacketToPES(frame *AudioFrame, aac_asc codec.AudioSpecificConfig) (packet mpegts.MpegTsPESPacket, err error) {
-	var data []byte
-	for _, b := range frame.Raw {
-		data = append(data, b...)
+	if frame.CodecID == codec.CodecID_AAC {
+		packet.Header.PesPacketLength = uint16(7 + frame.AUList.ByteLength + 8)
+		packet.Buffers = frame.GetADTS()
+	} else {
+		packet.Header.PesPacketLength = uint16(frame.AUList.ByteLength + 8)
+		packet.Buffers = frame.AUList.ToBuffers()
 	}
-	if data, err = AudioPacketToPESPreprocess(data, aac_asc); err != nil {
-		return
-	}
-
 	// packetLength = 原始音频流长度 + adts(7) + MpegTsOptionalPESHeader长度(8 bytes, 因为只含有pts)
-	pktLength := len(data) + 8
+	// pktLength := len(data) + 8
 
 	packet.Header.PacketStartCodePrefix = 0x000001
 	packet.Header.ConstTen = 0x80
 	packet.Header.StreamID = mpegts.STREAM_ID_AUDIO
-	packet.Header.PesPacketLength = uint16(pktLength)
+	// packet.Header.PesPacketLength = uint16(pktLength)
 	packet.Header.Pts = uint64(frame.PTS)
 	packet.Header.PtsDtsFlags = 0x80
 	packet.Header.PesHeaderDataLength = 5
 
-	packet.Payload = data
+	// packet.Payload = data
 
 	return
 }
